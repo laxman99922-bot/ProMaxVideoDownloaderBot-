@@ -2,14 +2,21 @@ const express = require('express');
 const cors = require('cors');
 const ytdl = require('@distube/ytdl-core');
 const path = require('path');
+const fs = require('fs'); // Naya add kiya hai file check karne ke liye
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// Frontend files ko serve karne ke liye 'public' folder use karenge
-app.use(express.static(path.join(__dirname, 'public')));
+// 🌟 BULLETPROOF UI SERVING: Ye khud check karega index.html kahan hai
+if (fs.existsSync(path.join(__dirname, 'index.html'))) {
+    app.use(express.static(__dirname));
+    app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+} else {
+    app.use(express.static(path.join(__dirname, 'public')));
+    app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+}
 
 // API 1: Video Info Fetch Karne Ke Liye
 app.get('/api/info', async (req, res) => {
@@ -21,7 +28,6 @@ app.get('/api/info', async (req, res) => {
 
         const info = await ytdl.getInfo(videoURL);
         
-        // Video aur Audio ko filter karna
         const videoFormats = ytdl.filterFormats(info.formats, 'videoandaudio');
         const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
 
@@ -45,7 +51,7 @@ app.get('/api/download', async (req, res) => {
         const itag = req.query.itag;
         let title = req.query.title || "download";
         
-        // Title me se special characters hatana taaki file save hone me error na aaye
+        // Title me se special characters hatana
         title = title.replace(/[^\w\s]/gi, '');
 
         res.header('Content-Disposition', `attachment; filename="${title}.mp4"`);
@@ -56,6 +62,5 @@ app.get('/api/download', async (req, res) => {
     }
 });
 
-// Render automatically process.env.PORT assign karta hai
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT} 🚀`));
