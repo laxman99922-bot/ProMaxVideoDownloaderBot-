@@ -1,15 +1,13 @@
 const express = require('express');
 const cors = require('cors');
-const ytdl = require('@distube/ytdl-core');
 const path = require('path');
-const fs = require('fs'); // Naya add kiya hai file check karne ke liye
+const fs = require('fs');
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
-// 🌟 BULLETPROOF UI SERVING: Ye khud check karega index.html kahan hai
+// UI Serving (Smart Checking)
 if (fs.existsSync(path.join(__dirname, 'index.html'))) {
     app.use(express.static(__dirname));
     app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
@@ -18,47 +16,62 @@ if (fs.existsSync(path.join(__dirname, 'index.html'))) {
     app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 }
 
-// API 1: Video Info Fetch Karne Ke Liye
+// API 1: ALL-IN-ONE Video Fetcher (YouTube, Instagram, TikTok, FB)
 app.get('/api/info', async (req, res) => {
     try {
         const videoURL = req.query.url;
-        if (!ytdl.validateURL(videoURL)) {
-            return res.status(400).json({ error: "Invalid YouTube URL" });
+        if (!videoURL) return res.status(400).json({ error: "Bro, please enter a valid URL!" });
+
+        // Using Universal Open API (Bypasses Render Blocks)
+        const response = await fetch("https://api.cobalt.tools/api/json", {
+            method: "POST",
+            headers: {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+            },
+            body: JSON.stringify({ 
+                url: videoURL,
+                vQuality: "720", 
+                filenamePattern: "classic"
+            })
+        });
+
+        const data = await response.json();
+
+        // Agar invalid link ho ya account private ho
+        if (data.status === 'error' || (!data.url && !data.picker)) {
+            return res.status(500).json({ error: "Download failed! URL private ya unsupported hai." });
         }
 
-        const info = await ytdl.getInfo(videoURL);
-        
-        const videoFormats = ytdl.filterFormats(info.formats, 'videoandaudio');
-        const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
+        // Direct download link nikalna
+        const directLink = data.url || (data.picker && data.picker[0] ? data.picker[0].url : "");
 
         res.json({
-            title: info.videoDetails.title,
-            thumbnail: info.videoDetails.thumbnails[0].url,
-            duration: info.videoDetails.lengthSeconds,
-            videos: videoFormats,
-            audios: audioFormats
+            title: "ProMax Media Ready 🚀",
+            thumbnail: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
+            videos: [
+                { qualityLabel: "High Quality (HD)", itag: encodeURIComponent(directLink), container: "mp4" }
+            ],
+            audios: [
+                { audioBitrate: 320, itag: encodeURIComponent(directLink), container: "mp3" }
+            ]
         });
+
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: "Failed to fetch video info! Check URL." });
+        res.status(500).json({ error: "Server Error! URL check karein." });
     }
 });
 
-// API 2: Video/Audio Download Karne Ke Liye
-app.get('/api/download', async (req, res) => {
-    try {
-        const videoURL = req.query.url;
-        const itag = req.query.itag;
-        let title = req.query.title || "download";
-        
-        // Title me se special characters hatana
-        title = title.replace(/[^\w\s]/gi, '');
-
-        res.header('Content-Disposition', `attachment; filename="${title}.mp4"`);
-        
-        ytdl(videoURL, { filter: format => format.itag == itag }).pipe(res);
-    } catch (error) {
-        res.status(500).send("Error downloading the file");
+// API 2: Download Proxy (Direct redirect to file)
+app.get('/api/download', (req, res) => {
+    const directUrl = req.query.itag;
+    if (directUrl) {
+        // Direct download link par bhej dega (Browser khud file download start kar dega)
+        res.redirect(decodeURIComponent(directUrl));
+    } else {
+        res.status(400).send("Download link invalid hai bro.");
     }
 });
 
