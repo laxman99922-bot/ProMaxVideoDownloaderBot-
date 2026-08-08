@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProDownloader - High Quality Downloader</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background: #0f172a; color: white; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1.5rem;
+        }
+        .gradient-text { background: linear-gradient(to right, #a855f7, #ec4899, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .orb { position: absolute; border-radius: 50%; filter: blur(80px); z-index: -1; animation: float 10s infinite ease-in-out alternate; }
+        @keyframes float { 0% { transform: translateY(0px) scale(1); } 100% { transform: translateY(-50px) scale(1.2); } }
+        .loader { border: 4px solid rgba(255, 255, 255, 0.1); border-left-color: #ec4899; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .reveal { opacity: 0; transform: translateY(20px); transition: all 0.6s ease-out; }
+        .reveal.active { opacity: 1; transform: translateY(0); }
+    </style>
+</head>
+<body class="min-h-screen relative flex flex-col items-center justify-center p-4">
+
+    <!-- Background Orbs -->
+    <div class="orb bg-purple-600 w-96 h-96 top-0 left-0 opacity-30"></div>
+    <div class="orb bg-pink-600 w-96 h-96 bottom-0 right-0 opacity-30 animation-delay-2000"></div>
+
+    <!-- Header Section -->
+    <div class="text-center w-full max-w-3xl z-10 mt-10">
+        <h1 class="text-5xl md:text-7xl font-bold mb-4 tracking-tight">Ultimate <span class="gradient-text">Downloader</span></h1>
+        <p class="text-gray-400 text-lg mb-10">Download high-quality videos and audio instantly.</p>
+
+        <!-- Input Box -->
+        <div class="glass-panel p-2 flex flex-col md:flex-row items-center gap-4 shadow-2xl transition-transform hover:scale-[1.02] duration-300">
+            <i class="fa-solid fa-link text-pink-500 text-xl ml-4"></i>
+            <input type="text" id="videoUrl" placeholder="Paste YouTube link here..." class="w-full bg-transparent text-white placeholder-gray-500 outline-none p-3 text-lg">
+            <button onclick="fetchVideo()" class="w-full md:w-auto bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold py-3 px-8 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2">
+                <span>Fetch</span> <i class="fa-solid fa-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Loading Animation -->
+    <div id="loading" class="hidden flex-col items-center mt-12 z-10">
+        <div class="loader mb-4"></div>
+        <p class="text-pink-400 animate-pulse">Extracting High Quality Formats...</p>
+    </div>
+
+    <!-- Results Section -->
+    <div id="resultBox" class="hidden w-full max-w-4xl mt-12 mb-12 z-10 reveal glass-panel p-6">
+        <div class="flex flex-col md:flex-row gap-8">
+            <!-- Thumbnail -->
+            <div class="w-full md:w-1/3 relative group rounded-xl overflow-hidden shadow-2xl">
+                <img id="thumbnail" src="" alt="Thumbnail" class="w-full h-auto object-cover transform group-hover:scale-110 transition-transform duration-500">
+            </div>
+
+            <!-- Download Options -->
+            <div class="w-full md:w-2/3 flex flex-col justify-center">
+                <h2 id="videoTitle" class="text-2xl font-bold mb-6">Video Title Here</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Video Section -->
+                    <div class="bg-gray-800 bg-opacity-50 p-4 rounded-xl border border-gray-700 hover:border-purple-500 transition-colors">
+                        <h3 class="text-lg font-semibold mb-3 text-purple-400"><i class="fa-solid fa-video"></i> Video Quality</h3>
+                        <select id="videoQuality" class="w-full bg-gray-900 text-white p-3 rounded-lg outline-none border border-gray-600 focus:border-purple-500 mb-3"></select>
+                        <button onclick="downloadFile('video')" class="w-full bg-purple-600 hover:bg-purple-700 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-download"></i> Download Video
+                        </button>
+                    </div>
+
+                    <!-- Audio Section -->
+                    <div class="bg-gray-800 bg-opacity-50 p-4 rounded-xl border border-gray-700 hover:border-pink-500 transition-colors">
+                        <h3 class="text-lg font-semibold mb-3 text-pink-400"><i class="fa-solid fa-music"></i> Audio Quality</h3>
+                        <select id="audioQuality" class="w-full bg-gray-900 text-white p-3 rounded-lg outline-none border border-gray-600 focus:border-pink-500 mb-3"></select>
+                        <button onclick="downloadFile('audio')" class="w-full bg-pink-600 hover:bg-pink-700 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-download"></i> Download Audio
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentVideoUrl = "";
+        let currentVideoTitle = "";
+
+        async function fetchVideo() {
+            const urlInput = document.getElementById('videoUrl').value;
+            if(!urlInput) { alert("Please enter a valid URL!"); return; }
+
+            currentVideoUrl = urlInput;
+            const loading = document.getElementById('loading');
+            const resultBox = document.getElementById('resultBox');
+
+            resultBox.classList.remove('active');
+            setTimeout(() => resultBox.classList.add('hidden'), 300);
+            loading.classList.remove('hidden');
+            loading.classList.add('flex');
+
+            try {
+                // Fetch info from relative API path (Automatically uses your Render domain)
+                const response = await fetch(`/api/info?url=${encodeURIComponent(urlInput)}`);
+                const data = await response.json();
+
+                if(data.error) {
+                    alert(data.error);
+                    loading.classList.add('hidden'); loading.classList.remove('flex');
+                    return;
+                }
+
+                currentVideoTitle = data.title;
+                document.getElementById('thumbnail').src = data.thumbnail;
+                document.getElementById('videoTitle').innerText = data.title;
+                
+                // Populate Video
+                const videoSelect = document.getElementById('videoQuality');
+                videoSelect.innerHTML = "";
+                data.videos.forEach(f => {
+                    if(f.qualityLabel) {
+                        videoSelect.innerHTML += `<option value="${f.itag}">${f.qualityLabel} - ${f.container}</option>`;
+                    }
+                });
+
+                // Populate Audio
+                const audioSelect = document.getElementById('audioQuality');
+                audioSelect.innerHTML = "";
+                data.audios.forEach(f => {
+                    audioSelect.innerHTML += `<option value="${f.itag}">${f.audioBitrate}kbps - ${f.container}</option>`;
+                });
+
+                loading.classList.add('hidden'); loading.classList.remove('flex');
+                resultBox.classList.remove('hidden');
+                setTimeout(() => resultBox.classList.add('active'), 50);
+
+            } catch (error) {
+                alert("Server issue! Check if URL is valid.");
+                loading.classList.add('hidden'); loading.classList.remove('flex');
+            }
+        }
+
+        function downloadFile(type) {
+            let itag = type === 'video' ? document.getElementById('videoQuality').value : document.getElementById('audioQuality').value;
+            if(!itag) return alert("Quality select karein!");
+            
+            // Redirect to download API
+            window.location.href = `/api/download?url=${encodeURIComponent(currentVideoUrl)}&itag=${itag}&title=${encodeURIComponent(currentVideoTitle)}`;
+        }
+    </script>
+</body>
+          </html>
